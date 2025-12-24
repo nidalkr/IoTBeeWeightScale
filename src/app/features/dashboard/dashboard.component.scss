@@ -1,0 +1,87 @@
+.page {
+  min-height: 100vh;
+  background: radial-gradient(1200px 400px at 40% 0%, #f8faee 0%, #f3fbf1 40%, #f6f7fb 100%);
+}
+
+.bee { font-size: 22px; }
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #0f172a;
+
+  .dot { width: 10px; height: 10px; border-radius: 999px; background: #94a3b8; }
+
+  &.ok { background: #dcfce7; color: #166534; .dot { background: #22c55e; } }
+  &.alert { background: #fee2e2; color: #991b1b; .dot { background: #ef4444; } }
+}
+
+.metric-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 14px 30px rgba(2, 6, 23, .08);
+
+  .metric-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .metric-label { font-size: 13px; color: #64748b; font-weight: 700; }
+  .metric-value { font-size: 36px; font-weight: 800; letter-spacing: -0.02em; margin-top: 6px; }
+  .unit { font-size: 16px; font-weight: 700; color: #475569; margin-left: 6px; }
+  .metric-sub { margin-top: 10px; font-size: 13px; font-weight: 700; }
+}
+
+.icon-badge {
+  width: 44px; height: 44px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+
+  &.amber { background: #fff7ed; color: #f59e0b; }
+  &.red { background: #fee2e2; color: #ef4444; }
+  &.blue { background: #dbeafe; color: #3b82f6; }
+  &.yellow { background: #fffbeb; color: #f59e0b; }
+}
+
+.chart-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 14px 30px rgba(2, 6, 23, .08);
+
+  .chart-wrap { height: 420px; }
+}
+
+.info-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 10px 24px rgba(2, 6, 23, .06);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .info-ic {
+    width: 44px; height: 44px;
+    border-radius: 14px;
+    background: #eef2ff;
+    color: #3b82f6;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    &.ok { background: #dcfce7; color: #16a34a; }
+  }
+}
+.info-ic.offline {
+  background: #fee2e2;
+  color: #ef4444;
+}
+

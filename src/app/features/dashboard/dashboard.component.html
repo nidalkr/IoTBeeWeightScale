@@ -1,0 +1,134 @@
+<div class="page">
+  <div class="container py-4">
+
+    <!-- Header -->
+    <div class="d-flex align-items-start justify-content-between gap-3 mb-4">
+      <div>
+        <div class="d-flex align-items-center gap-2">
+          <span class="bee">🐝</span>
+          <h1 class="h4 mb-0 fw-bold">Smart Beehive Dashboard</h1>
+        </div>
+        <div class="text-muted small mt-1">Real-time monitoring of hive health and activity</div>
+      </div>
+
+      <div class="status-pill" [class.ok]="statusLabel === 'Normal'" [class.alert]="statusLabel === 'Alert'">
+        <span class="dot"></span>
+        {{ statusLabel }}
+      </div>
+    </div>
+
+    <!-- Metric cards -->
+    <div class="row g-3 mb-3" *ngIf="(latest$ | async) as latest; else loading">
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="metric-card">
+          <div class="metric-top">
+            <div>
+              <div class="metric-label">Hive Weight</div>
+              <div class="metric-value">{{ latest.weight | number:'1.1-1' }} <span class="unit">kg</span></div>
+              <div class="metric-sub text-success">
+                <i class="bi bi-graph-up"></i> Increasing
+              </div>
+            </div>
+            <div class="icon-badge amber"><i class="bi bi-bounding-box"></i></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="metric-card">
+          <div class="metric-top">
+            <div>
+              <div class="metric-label">Temperature</div>
+              <div class="metric-value">{{ latest.temp | number:'1.1-1' }} <span class="unit">°C</span></div>
+              <div class="metric-sub text-primary">— Optimal</div>
+            </div>
+            <div class="icon-badge red"><i class="bi bi-thermometer-half"></i></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="metric-card">
+          <div class="metric-top">
+            <div>
+              <div class="metric-label">Humidity</div>
+              <div class="metric-value">{{ latest.hum | number:'1.0-0' }} <span class="unit">%</span></div>
+              <div class="metric-sub text-primary">— Normal</div>
+            </div>
+            <div class="icon-badge blue"><i class="bi bi-droplet"></i></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="metric-card">
+          <div class="metric-top">
+            <div>
+              <div class="metric-label">Light Level</div>
+              <div class="metric-value">{{ lightText(latest.light) }}</div>
+              <div class="metric-sub text-primary">— Daytime</div>
+            </div>
+            <div class="icon-badge yellow"><i class="bi bi-brightness-high"></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <ng-template #loading>
+      <div class="text-muted">Waiting for data from Firebase…</div>
+    </ng-template>
+
+    <!-- Chart -->
+    <div class="chart-card mt-3">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <h2 class="h5 mb-0 fw-bold">Hive Weight Over Time</h2>
+      </div>
+
+      <div class="chart-wrap">
+        <canvas baseChart
+                [data]="lineChartData"
+                [options]="lineChartOptions"
+                [type]="'line'">
+        </canvas>
+      </div>
+    </div>
+
+    <!-- Bottom info -->
+    <div class="row g-3 mt-3" *ngIf="(latest$ | async) as latest2">
+      <div class="col-12 col-lg-6">
+        <div class="info-card">
+          <div class="info-ic"><i class="bi bi-clock"></i></div>
+          <div>
+            <div class="small text-muted">Last Update</div>
+            <div class="fw-semibold">{{ latest2.ts }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-6">
+        <div class="info-card">
+          <div class="info-ic"
+               [class.ok]="connectionStatus === 'Online'"
+               [class.offline]="connectionStatus === 'Offline'">
+            <i class="bi bi-wifi"></i>
+          </div>
+
+          <div>
+            <div class="small text-muted">Connection Status</div>
+
+            <div class="fw-semibold"
+                 [class.text-success]="connectionStatus === 'Online'"
+                 [class.text-danger]="connectionStatus === 'Offline'">
+              {{ connectionStatus === 'Online' ? 'Connected to ESP' : 'ESP Offline' }}
+            </div>
+
+            <div class="small text-muted">
+              (Firebase: connected)
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
