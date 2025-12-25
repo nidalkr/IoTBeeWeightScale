@@ -106,8 +106,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   lightText(light: number): string {
-    if (light > 2800) return 'High';
-    if (light > 1400) return 'Medium';
-    return 'Low';
+    if (light > 750) return 'Sunny';
+    if (light > 350) return 'Cloudy';
+    return 'Night';
   }
 }
