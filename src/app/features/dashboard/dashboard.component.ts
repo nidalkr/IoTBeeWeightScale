@@ -24,9 +24,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   // ✅ Connection status based on last update freshness
   connectionStatus: 'Online' | 'Offline' = 'Offline';
-  private offlineThresholdMs = 90_000; // 90s (podesi po potrebi)
+  private offlineThresholdMs = 90_000; // 90s
   private lastTs: string | null = null;
   private timerId: any;
+
+  // ✅ Weight trend
+  private prevWeight: number | null = null;
+  weightTrend: 'increase' | 'decrease' | 'stable' = 'stable';
 
   lineChartData: ChartConfiguration<'line'>['data'] = {
     labels: [],
@@ -55,6 +59,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
       // status badge example
       this.statusLabel = v.weight < 1 ? 'Alert' : 'Normal';
+
+      // ✅ weight trend vs previous latest
+      if (this.prevWeight !== null) {
+        const diff = v.weight - this.prevWeight;
+        const eps = 0.05; // 50g prag (podesi)
+        if (diff > eps) this.weightTrend = 'increase';
+        else if (diff < -eps) this.weightTrend = 'decrease';
+        else this.weightTrend = 'stable';
+      }
+      this.prevWeight = v.weight;
 
       // update connection status immediately
       this.updateConnectionStatus(v.ts);
@@ -86,6 +100,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (this.timerId) clearInterval(this.timerId);
   }
 
+  // =====================
+  // Connection helpers
+  // =====================
   private updateConnectionStatus(ts: string): void {
     const last = this.parseTs(ts);
     if (!last) {
@@ -105,9 +122,54 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return isNaN(d.getTime()) ? null : d;
   }
 
+  // =====================
+  // UI helpers
+  // =====================
   lightText(light: number): string {
     if (light > 750) return 'Sunny';
     if (light > 350) return 'Cloudy';
     return 'Night';
+  }
+
+  weightTrendLabel(): string {
+    if (this.weightTrend === 'increase') return 'Increasing';
+    if (this.weightTrend === 'decrease') return 'Decreasing';
+    return 'Stable';
+  }
+
+  weightTrendIcon(): string {
+    if (this.weightTrend === 'increase') return 'bi-graph-up';
+    if (this.weightTrend === 'decrease') return 'bi-graph-down';
+    return 'bi-dash-lg';
+  }
+
+  weightTrendClass(): string {
+    if (this.weightTrend === 'increase') return 'text-success';
+    if (this.weightTrend === 'decrease') return 'text-danger';
+    return 'text-muted';
+  }
+
+  // Temperature status (podesi pragove po potrebi)
+  tempStatus(t: number | null | undefined): { label: string; className: string } {
+    if (t === null || t === undefined || Number.isNaN(t)) {
+      return { label: '— No data', className: 'text-muted' };
+    }
+
+    if (t < 5) return { label: '— Low', className: 'text-info' };
+    if (t >= 18) return { label: '— Optimal', className: 'text-success' };
+    if (t >= 30) return { label: '— High', className: 'text-warning' };
+    return { label: '— Critical', className: 'text-danger' };
+  }
+
+  // Humidity status (podesi pragove po potrebi)
+  humStatus(h: number | null | undefined): { label: string; className: string } {
+    if (h === null || h === undefined || Number.isNaN(h)) {
+      return { label: '— No data', className: 'text-muted' };
+    }
+
+    if (h < 45) return { label: '— Dry', className: 'text-warning' };
+    if (h <= 65) return { label: '— Normal', className: 'text-success' };
+    if (h <= 75) return { label: '— Humid', className: 'text-warning' };
+    return { label: '— Very humid', className: 'text-danger' };
   }
 }

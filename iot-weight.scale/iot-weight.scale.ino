@@ -5,13 +5,11 @@
 #endif
 
 #include <Firebase_ESP_Client.h>
-#include <HX711.h>
 #include <DHT.h>
 #include <Wire.h>
 #include <RTClib.h>
 #include <LiquidCrystal_I2C.h>
 #include <time.h>
-
 
 // =====================
 // WIFI / FIREBASE
@@ -29,9 +27,6 @@ const char deviceId[] = "beehive1";
 // =====================
 // PINS
 // =====================
-#define HX711_DOUT D5
-#define HX711_SCK  D6
-
 #define DHTPIN     D7
 #define DHTTYPE    DHT22
 
@@ -41,7 +36,6 @@ const char deviceId[] = "beehive1";
 // =====================
 // DEVICES
 // =====================
-HX711 scale;
 DHT dht(DHTPIN, DHTTYPE);
 RTC_DS3231 rtc;
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -51,24 +45,17 @@ FirebaseAuth auth;
 FirebaseConfig config;
 
 // =====================
-// SCALE
+// DEMO / SIMULATION MODE (SADA JE UVIJEK DEMO)
 // =====================
-float calibrationFactor = -7050;
-
-// =====================
-// DEMO / SIMULATION MODE
-// =====================
-// Ako HX711 ne radi, koristiš demo težinu za prikaz sistema.
 // Pritiskom 'r' u Serial Monitoru prebacuješ na sljedeću demo vrijednost.
-bool DEMO_MODE = true;
-
-// Demo lista (0–20kg) – realistični skokovi
+// Pritiskom 't' postavljaš trenutnu vrijednost kao 0kg (tara).
 float demoWeights[] = { 2.5, 6.8, 10.2, 13.7, 15.9, 18.4, 19.6, 12.1, 7.4, 3.0 };
 const int demoCount = sizeof(demoWeights) / sizeof(demoWeights[0]);
 int demoIndex = 0;
 float demoWeight = demoWeights[0];
 
-DateTime vrijeme = rtc.now();
+// "tara" offset za DEMO
+float tareOffsetKg = 0.0f;
 
 // =====================
 // HELPERS
@@ -81,6 +68,9 @@ void connectWiFi() {
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
+#if defined(ESP8266)
+    yield();
+#endif
     if (++retries > 60) {
       Serial.println("\nNeuspjelo spajanje na Wi-Fi");
       return;
@@ -106,7 +96,7 @@ void sendReading(float weight, float temp, float hum, float light, const char* t
   json.set("temp", temp);
   json.set("hum", hum);
   json.set("light", light);
-  json.set("mode", mode); // "REAL" ili "DEMO"
+  json.set("mode", mode); // uvijek "DEMO"
 
   String latestPath = String("/devices/") + deviceId + "/latest";
   String readingsPath = String("/devices/") + deviceId + "/readings";
@@ -123,7 +113,6 @@ void sendReading(float weight, float temp, float hum, float light, const char* t
 }
 
 // RTC: bez baterije moraš postaviti vrijeme na svakom bootu.
-// Ako ti smeta reset na svaki restart, ubaci CR2032.
 void setRtcOnBoot() {
   if (!rtc.begin()) {
     Serial.println("RTC nije pronađen!");
@@ -134,43 +123,23 @@ void setRtcOnBoot() {
 }
 
 void beepShort() {
-  // Ako ti buzzer smeta na boot-u, najbolje je tranzistor ili pasivni buzzer.
   digitalWrite(BUZZER_PIN, HIGH);
   delay(60);
   digitalWrite(BUZZER_PIN, LOW);
 }
 
-// Vraća težinu: REAL ako HX711 radi, inače DEMO
-float readWeightKg(bool &isDemoOut) {
-  if (!DEMO_MODE) {
-    // pokušaj realno
-    if (scale.is_ready()) {
-      isDemoOut = false;
-      return scale.get_units(10); // kg (ovisno o kalibraciji)
-    } else {
-      // fallback na demo ako nije ready
-      isDemoOut = true;
-      return demoWeight;
-    }
-  }
-
-  // DEMO mode
-  isDemoOut = true;
-  return demoWeight;
-}
-
 const char* lightToText(int light) {
-  if (light > 750) {
-    return "Sunny";
-  } 
-  else if (light > 350) {
-    return "Cloudy";
-  } 
-  else {
-    return "Night";
-  }
+  if (light > 750) return "Sunny";
+  if (light > 350) return "Cloudy";
+  return "Night";
 }
 
+// DEMO težina sa tarom (nikad ne ide ispod 0)
+float getWeightKgDemo() {
+  float w = demoWeight - tareOffsetKg;
+  if (w < 0) w = 0;
+  return w;
+}
 
 // =====================
 // SETUP
@@ -182,30 +151,27 @@ void setup() {
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW);
 
-  // HX711 init (real)
-  scale.begin(HX711_DOUT, HX711_SCK);
-  scale.set_scale(calibrationFactor);
-  scale.tare();
-
-  dht.begin();
   Wire.begin();
   lcd.init();
   lcd.backlight();
   lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Boot...");
+
+  dht.begin();
 
   connectWiFi();
   setRtcOnBoot();
   initFirebase();
 
   Serial.println("\nKomande:");
-  Serial.println("  r  -> sljedeca DEMO tezina (0–20kg)");
-  Serial.println("  d  -> toggle DEMO_MODE (DEMO <-> REAL pokusaj)");
-  Serial.println("  t  -> tare (samo ako si u REAL i HX711 radi)");
+  Serial.println("  r  -> sljedeca DEMO tezina");
+  Serial.println("  t  -> tara (postavi trenutno na 0kg)");
   Serial.println("--------------------------------------------");
 
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Beehive scale");
-  lcd.setCursor(0, 1);
   delay(1200);
   lcd.clear();
 }
@@ -219,39 +185,32 @@ void loop() {
     char ch = (char)Serial.read();
 
     if (ch == 'r' || ch == 'R') {
-      // sljedeca demo tezina
       demoIndex = (demoIndex + 1) % demoCount;
       demoWeight = demoWeights[demoIndex];
 
-      Serial.print("DEMO tezina promijenjena na: ");
+      Serial.print("DEMO tezina: ");
       Serial.print(demoWeight, 2);
+      Serial.print(" kg, tareOffset=");
+      Serial.print(tareOffsetKg, 2);
       Serial.println(" kg");
 
       beepShort();
     }
 
-    if (ch == 'd' || ch == 'D') {
-      DEMO_MODE = !DEMO_MODE;
-      Serial.print("DEMO_MODE = ");
-      Serial.println(DEMO_MODE ? "ON (DEMO)" : "OFF (pokusaj REAL)");
-      beepShort();
-    }
-
     if (ch == 't' || ch == 'T') {
-      if (!DEMO_MODE && scale.is_ready()) {
-        scale.set_scale(calibrationFactor);
-        scale.tare();
-        Serial.println("Tare OK (REAL).");
-      } else {
-        Serial.println("Tare preskocen (DEMO ili HX711 nije ready).");
-      }
+      // postavi trenutnu demo vrijednost kao nulu
+      tareOffsetKg = demoWeight;
+
+      Serial.print("Tara OK. Offset postavljen na: ");
+      Serial.print(tareOffsetKg, 2);
+      Serial.println(" kg");
+
       beepShort();
     }
   }
 
   // ===== readings =====
-  bool isDemo = false;
-  float weight = readWeightKg(isDemo);
+  float weight = getWeightKgDemo();
 
   float temperature = dht.readTemperature();
   float humidity = dht.readHumidity();
@@ -260,14 +219,13 @@ void loop() {
   float light = (float)lightRaw;
   const char* lightText = lightToText(lightRaw);
 
-
   // time
   DateTime now = rtc.now();
   char timestamp[20];
   snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d",
            now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second());
 
-  const char* modeStr = isDemo ? "DEMO" : "REAL";
+  const char* modeStr = "DEMO";
 
   // ===== serial print =====
   Serial.println("--------------");
@@ -280,31 +238,30 @@ void loop() {
   Serial.println("--------------");
 
   // ===== LCD =====
-  // ===== RED 0 =====
-lcd.setCursor(0, 0);
-lcd.print("W:");
-lcd.print(weight, 1);
-lcd.print("kg");
+  lcd.setCursor(0, 0);
+  lcd.print("W:");
+  lcd.print(weight, 1);
+  lcd.print("kg   ");
 
-// malo razmaka do temperature
-lcd.setCursor(8, 0);
-lcd.print(" T:");
-lcd.print(temperature, 1);
-lcd.print("C");
+  lcd.setCursor(8, 0);
+  lcd.print("T:");
+  lcd.print(temperature, 1);
+  lcd.print("C  ");
 
-// ===== RED 1 =====
-lcd.setCursor(0, 1);
-lcd.print("H:");
-lcd.print(humidity, 0);
-lcd.print("%");
+  lcd.setCursor(0, 1);
+  lcd.print("H:");
+  lcd.print(humidity, 0);
+  lcd.print("% ");
 
-// stanje svjetla (Sunny / Cloudy / Night)
-lcd.setCursor(6, 1);
-lcd.print(lightText);
-
+  lcd.setCursor(6, 1);
+  lcd.print(lightText);
+  lcd.print("     ");
 
   // ===== firebase =====
   sendReading(weight, temperature, humidity, light, timestamp, modeStr);
 
   delay(10000);
+#if defined(ESP8266)
+  yield();
+#endif
 }
